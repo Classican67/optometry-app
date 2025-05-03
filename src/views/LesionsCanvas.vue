@@ -2,7 +2,7 @@
   <v-container>
     <LesionCanvas
       :exam-id="route.params.examId"
-      background-image="/retina-background.png"
+      background-image="/segment_anterieur.svg"
     />
   </v-container>
 </template>

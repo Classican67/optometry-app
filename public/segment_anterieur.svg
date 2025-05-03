@@ -1,0 +1,127 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!-- Created with Inkscape (http://www.inkscape.org/) -->
+
+<svg
+   width="178.91409mm"
+   height="66.144051mm"
+   viewBox="0 0 178.91409 66.144051"
+   version="1.1"
+   id="svg1"
+   xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape"
+   xmlns:sodipodi="http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd"
+   xmlns="http://www.w3.org/2000/svg"
+   xmlns:svg="http://www.w3.org/2000/svg">
+  <sodipodi:namedview
+     id="namedview1"
+     pagecolor="#ffffff"
+     bordercolor="#000000"
+     borderopacity="0.25"
+     inkscape:showpageshadow="2"
+     inkscape:pageopacity="0.0"
+     inkscape:pagecheckerboard="0"
+     inkscape:deskcolor="#d1d1d1"
+     inkscape:document-units="mm">
+    <inkscape:page
+       x="0"
+       y="0"
+       width="178.91409"
+       height="66.144051"
+       id="page2"
+       margin="0"
+       bleed="0" />
+  </sodipodi:namedview>
+  <defs
+     id="defs1" />
+  <g
+     inkscape:label="Calque 1"
+     inkscape:groupmode="layer"
+     id="layer1"
+     transform="translate(-17.43241,-19.977392)">
+    <ellipse
+       style="fill:#000000;fill-opacity:0;stroke:#000000;stroke-width:0.392941;stroke-dasharray:none;stroke-opacity:1"
+       id="path1"
+       cx="57.975822"
+       cy="47.6222"
+       rx="40.037148"
+       ry="14.063096"
+       inkscape:export-filename="segment_anterieur.svg"
+       inkscape:export-xdpi="96"
+       inkscape:export-ydpi="96" />
+    <ellipse
+       style="fill:#000000;fill-opacity:0;stroke:#000000;stroke-width:0.472003;stroke-dasharray:none;stroke-opacity:1"
+       id="path2"
+       cx="58.130562"
+       cy="47.6222"
+       rx="14.776895"
+       ry="14.022983" />
+    <ellipse
+       style="fill:#000000;fill-opacity:0;stroke:#000000;stroke-width:0.472003;stroke-dasharray:none;stroke-opacity:1"
+       id="path3"
+       cx="58.207924"
+       cy="47.064465"
+       rx="4.4872246"
+       ry="4.3821821" />
+    <ellipse
+       style="fill:#000000;fill-opacity:0;stroke:#000000;stroke-width:0.438777;stroke-dasharray:none;stroke-opacity:1"
+       id="path4"
+       cx="57.89846"
+       cy="48.100254"
+       rx="40.246662"
+       ry="27.903473" />
+    <ellipse
+       style="fill:#000000;fill-opacity:0;stroke:#000000;stroke-width:0.392941;stroke-dasharray:none;stroke-opacity:1"
+       id="ellipse5"
+       cx="155.95782"
+       cy="47.6222"
+       rx="40.037148"
+       ry="14.063096"
+       inkscape:export-filename="segment_anterieur.svg"
+       inkscape:export-xdpi="96"
+       inkscape:export-ydpi="96" />
+    <ellipse
+       style="fill:#000000;fill-opacity:0;stroke:#000000;stroke-width:0.472003;stroke-dasharray:none;stroke-opacity:1"
+       id="ellipse6"
+       cx="156.11256"
+       cy="47.6222"
+       rx="14.776895"
+       ry="14.022983" />
+    <ellipse
+       style="fill:#000000;fill-opacity:0;stroke:#000000;stroke-width:0.472003;stroke-dasharray:none;stroke-opacity:1"
+       id="ellipse7"
+       cx="156.18993"
+       cy="47.064465"
+       rx="4.4872246"
+       ry="4.3821821" />
+    <ellipse
+       style="fill:#000000;fill-opacity:0;stroke:#000000;stroke-width:0.438777;stroke-dasharray:none;stroke-opacity:1"
+       id="ellipse8"
+       cx="155.88046"
+       cy="48.100254"
+       rx="40.246662"
+       ry="27.903473" />
+    <text
+       xml:space="preserve"
+       style="font-size:8.62176px;text-align:start;writing-mode:lr-tb;direction:ltr;text-anchor:start;fill:#000000;fill-opacity:0.97654;stroke:#000000;stroke-width:0.4;stroke-dasharray:none;stroke-opacity:1"
+       x="46.481438"
+       y="93.954269"
+       id="text8"
+       transform="scale(1.1015348,0.90782425)"><tspan
+         sodipodi:role="line"
+         id="tspan8"
+         style="fill:#000000;fill-opacity:0.97654;stroke-width:0.4;stroke-dasharray:none"
+         x="46.481438"
+         y="93.954269">OD</tspan></text>
+    <text
+       xml:space="preserve"
+       style="font-size:8.62176px;text-align:start;writing-mode:lr-tb;direction:ltr;text-anchor:start;fill:#000000;fill-opacity:0.97654;stroke:#000000;stroke-width:0.4;stroke-dasharray:none;stroke-opacity:1"
+       x="135.89395"
+       y="94.514946"
+       id="text9"
+       transform="scale(1.1015348,0.90782425)"><tspan
+         sodipodi:role="line"
+         id="tspan9"
+         style="fill:#000000;fill-opacity:0.97654;stroke-width:0.4;stroke-dasharray:none"
+         x="135.89395"
+         y="94.514946">OS</tspan></text>
+  </g>
+</svg>
