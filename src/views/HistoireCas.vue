@@ -1,75 +1,114 @@
 <template>
-  <v-container>
-    <!-- Zone de dessin - Apple Pencil via touch events -->
-    <h2 class="mt-6">Signature ou dessin</h2>
-    <div
-      class="drawing-area"
-      @touchstart.prevent="onTouchStart"
-      @touchmove.prevent="onTouchMove"
-      @touchend.prevent="onTouchEnd"
-    >
-      <canvas ref="pencilCanvas"></canvas>
-    </div>
-    <v-btn class="mt-2" @click="clearCanvas" color="error">Effacer</v-btn>
-    <v-btn class="mt-2 ml-2" color="success" @click="validerExamen">
-  Valider l'examen
-</v-btn>
-<v-btn
-  class="mt-2 ml-2"
-  color="primary"
-  @click="exporterPDF"
-  :disabled="!examenValide"
->
-  Exporter en PDF
-</v-btn>
+  <v-container fluid class="fill-height pa-0">
+    <v-row no-gutters class="fill-height">
+      <!-- Marge gauche avec les boutons -->
+      <v-col cols="2" class="d-flex flex-column">
+        <v-card class="h-100 d-flex flex-column" flat>
+          <v-card-text class="flex-grow-1 d-flex flex-column">
+            <v-btn
+              block
+              class="mb-2"
+              color="error"
+              @click="clearCanvas"
+              size="large"
+            >
+              Effacer
+            </v-btn>
+            <v-btn
+              block
+              class="mb-2"
+              color="success"
+              @click="validerExamen"
+              size="large"
+            >
+              Valider
+            </v-btn>
+            <v-btn
+              block
+              class="mb-2"
+              color="primary"
+              @click="exporterPDF"
+              :disabled="!examenValide"
+              size="large"
+            >
+              EXPORTER
+            </v-btn>
+            <v-divider class="my-4"></v-divider>
+            <div class="d-flex justify-space-between mb-2">
+              <v-btn
+                @click="undo"
+                :disabled="undoStack.length === 0"
+                icon="mdi-undo"
+                size="large"
+              ></v-btn>
+              <v-btn
+                @click="redo"
+                :disabled="redoStack.length === 0"
+                icon="mdi-redo"
+                size="large"
+              ></v-btn>
+            </div>
+            <div class="px-2 mt-4">
+              <div class="text-caption mb-2">Taille du crayon</div>
+              <v-slider
+                v-model="penSize"
+                :min="1"
+                :max="20"
+                :step="1"
+                thumb-label
+                hide-details
+                color="primary"
+              ></v-slider>
+            </div>
+          </v-card-text>
+        </v-card>
+      </v-col>
 
-    <v-row class="mb-2" align="center">
-      <v-col cols="auto">
-        <v-btn @click="undo" :disabled="undoStack.length === 0" icon>
-          <v-icon>mdi-undo</v-icon>
-        </v-btn>
-      </v-col>
-      <v-col cols="auto">
-        <v-btn @click="redo" :disabled="redoStack.length === 0" icon>
-          <v-icon>mdi-redo</v-icon>
-        </v-btn>
-      </v-col>
-      <v-col cols="auto">
-        <v-select
-          v-model="penSize"
-          :items="penSizes"
-          label="Taille du crayon"
-          dense
-          hide-details
-          style="max-width: 120px"
-        ></v-select>
+      <!-- Zone de dessin -->
+      <v-col cols="10" class="d-flex flex-column">
+        <v-card flat class="flex-grow-1 d-flex flex-column">
+          <v-card-text class="flex-grow-1 pa-0">
+            <div
+              class="drawing-area"
+              @touchstart.prevent="onTouchStart"
+              @touchmove.prevent="onTouchMove"
+              @touchend.prevent="onTouchEnd"
+              @mousedown.prevent="onMouseDown"
+              @mousemove.prevent="onMouseMove"
+              @mouseup.prevent="onMouseUp"
+              @mouseleave.prevent="onMouseUp"
+            >
+              <canvas ref="pencilCanvas"></canvas>
+            </div>
+          </v-card-text>
+        </v-card>
       </v-col>
     </v-row>
   </v-container>
 </template>
 
 <script setup>
-import { onMounted, ref, watch } from 'vue';
-import { useRoute, useRouter } from 'vue-router';
-import { dbService } from '../services/db';
-import { pdfService } from '../services/pdfService';
-import ExamenVue from "../views/ExamenVue.vue";
 import { jsPDF } from "jspdf";
+import { onMounted, ref, watch } from "vue";
+import { useRoute, useRouter } from "vue-router";
 import { authService } from "../services/auth";
+import { dbService } from "../services/db";
+import { pdfService } from "../services/pdfService";
 
 const route = useRoute();
 const router = useRouter();
 const loading = ref(false);
 const formRef = ref(null);
 const pencilCanvas = ref(null);
+const examenValide = ref(false);
 
 const form = ref({
-  motifConsultation: '',
-  antecedents: '',
-  antecedentsFamiliaux: '',
-  traitements: '',
-  allergies: '',
-  habitudesVisuelles: '',
+  motifConsultation: "",
+  antecedents: "",
+  antecedentsFamiliaux: "",
+  traitements: "",
+  allergies: "",
+  habitudesVisuelles: "",
 });
 
 // Context 2D et état
@@ -89,19 +128,25 @@ function setCanvasToImageSize() {
   if (backgroundImg && pencilCanvas.value) {
     pencilCanvas.value.width = backgroundImg.naturalWidth;
     pencilCanvas.value.height = backgroundImg.naturalHeight;
-    pencilCanvas.value.style.width = backgroundImg.naturalWidth + 'px';
-    pencilCanvas.value.style.height = backgroundImg.naturalHeight + 'px';
-    ctx.lineCap = 'round';
-    ctx.strokeStyle = '#000';
+    pencilCanvas.value.style.width = backgroundImg.naturalWidth + "px";
+    pencilCanvas.value.style.height = backgroundImg.naturalHeight + "px";
+    ctx.lineCap = "round";
+    ctx.strokeStyle = "#000";
     ctx.lineWidth = penSize.value;
   }
 }
 
 function drawBackgroundAndPaths() {
   ctx.clearRect(0, 0, pencilCanvas.value.width, pencilCanvas.value.height);
-  ctx.drawImage(backgroundImg, 0, 0, pencilCanvas.value.width, pencilCanvas.value.height);
+  ctx.drawImage(
+    backgroundImg,
+    0,
+    0,
+    pencilCanvas.value.width,
+    pencilCanvas.value.height
+  );
   for (const path of paths) {
-    ctx.strokeStyle = '#000';
+    ctx.strokeStyle = "#000";
     ctx.lineWidth = path.size;
     ctx.beginPath();
     for (let i = 0; i < path.points.length; i++) {
@@ -120,7 +165,7 @@ function drawBackgroundAndPaths() {
 function getStylusTouch(touches) {
   for (let i = 0; i < touches.length; i++) {
     const t = touches[i];
-    if (t.touchType === 'stylus') {
+    if (t.touchType === "stylus") {
       return t;
     }
   }
@@ -151,7 +196,7 @@ function onTouchMove(event) {
   const py = y - rect.top;
   currentPath.push({ x: px, y: py });
   ctx.lineTo(px, py);
-  ctx.strokeStyle = '#000';
+  ctx.strokeStyle = "#000";
   ctx.lineWidth = penSize.value;
   ctx.stroke();
 }
@@ -176,7 +221,10 @@ function undo() {
   if (undoStack.value.length > 0) {
     redoStack.value.push(JSON.stringify(paths));
     undoStack.value.pop();
-    paths = undoStack.value.length > 0 ? JSON.parse(undoStack.value[undoStack.value.length - 1]) : [];
+    paths =
+      undoStack.value.length > 0
+        ? JSON.parse(undoStack.value[undoStack.value.length - 1])
+        : [];
     drawBackgroundAndPaths();
     saveCanvasData();
     saveCanvasImage();
@@ -206,11 +254,11 @@ async function loadHistoryData(examId) {
   if (!examId) return;
   loading.value = true;
   try {
-    const saved = await dbService.getSection(examId, 'histoire');
+    const saved = await dbService.getSection(examId, "histoire");
     if (saved?.data) form.value = { ...saved.data };
   } catch (e) {
     console.error(e);
-    alert('Impossible de charger les données');
+    alert("Impossible de charger les données");
   } finally {
     loading.value = false;
   }
@@ -220,11 +268,11 @@ async function submitForm() {
   loading.value = true;
   try {
     const examId = route.params.examId;
-    if (!examId) throw new Error('ID manquant');
+    if (!examId) throw new Error("ID manquant");
     const { valid } = await formRef.value.validate();
-    if (!valid) throw new Error('Formulaire invalide');
-    await dbService.saveSection(examId, 'histoire', form.value);
-    await pdfService.generateSectionPDF(examId, 'histoire', form.value);
+    if (!valid) throw new Error("Formulaire invalide");
+    await dbService.saveSection(examId, "histoire", form.value);
+    await pdfService.generateSectionPDF(examId, "histoire", form.value);
     router.push(`/refraction-objective/${examId}`);
   } catch (e) {
     console.error(e);
@@ -282,16 +330,19 @@ watch(penSize, (newSize) => {
 onMounted(async () => {
   loadHistoryData(route.params.examId);
   const canvas = pencilCanvas.value;
-  ctx = canvas.getContext('2d');
+  ctx = canvas.getContext("2d");
   backgroundImg = new window.Image();
-  backgroundImg.src = '/examen_annie.svg';
+  backgroundImg.src = "/examen_annie.svg";
   backgroundImg.onload = async () => {
     setCanvasToImageSize();
     await loadCanvasData();
   };
 });
 
-watch(() => route.params.examId, id => loadHistoryData(id));
+watch(
+  () => route.params.examId,
+  (id) => loadHistoryData(id)
+);
 
 async function validerExamen() {
   const examId = route.params.examId;
@@ -307,8 +358,8 @@ async function validerExamen() {
     exam.status = "Terminé";
     exam.updatedAt = new Date().toISOString();
     await dbService.saveExam(exam);
+    examenValide.value = true;
     alert("Examen validé ! Vous pouvez maintenant exporter le PDF.");
-    // Optionnel : rediriger ou rafraîchir la page d'accueil
   } catch (e) {
     console.error(e);
     alert("Erreur lors de la validation de l'examen");
@@ -317,17 +368,27 @@ async function validerExamen() {
 
 async function exporterPDF() {
   if (!examenValide.value) {
-    alert("Vous devez d'abord valider l'examen avant de pouvoir l'exporter en PDF.");
+    alert(
+      "Vous devez d'abord valider l'examen avant de pouvoir l'exporter en PDF."
+    );
     return;
   }
   const examId = route.params.examId;
   const exam = await dbService.getExam(examId);
   const patient = exam?.patient || {};
-  const praticien = authService.getCurrentUser()?.id || "Inconnu";
+  const praticien = authService.getCurrentUser();
+  const dateExamen = new Date(exam.createdAt).toLocaleDateString("fr-FR");
 
   // Récupérer l'image du canvas annoté
-  const canvasSection = await dbService.getSection(examId, "histoire-canvas-image");
-  if (!canvasSection || !canvasSection.data || !canvasSection.data.startsWith("data:image")) {
+  const canvasSection = await dbService.getSection(
+    examId,
+    "histoire-canvas-image"
+  );
+  if (
+    !canvasSection ||
+    !canvasSection.data ||
+    !canvasSection.data.startsWith("data:image")
+  ) {
     alert("Aucune annotation trouvée pour ce dossier.");
     return;
   }
@@ -336,20 +397,26 @@ async function exporterPDF() {
   const doc = new jsPDF({
     orientation: "landscape",
     unit: "mm",
-    format: "a4"
+    format: "a4",
   });
 
   // Titre personnalisé
   doc.setFontSize(18);
   doc.setTextColor(33, 150, 243);
   doc.text(
-    `Examen - ${patient.prenom || ""} ${patient.nom || ""} - par Dr(e) - ${praticien}`,
+    `Examen - ${dateExamen} - ${patient.prenom || ""} ${patient.nom || ""} (${patient.dateNaissance || ""})`,
     10,
-    20
+    15
+  );
+  doc.setFontSize(14);
+  doc.text(
+    `Réalisé par Dr(e) ${praticien.prenom} ${praticien.nom} - N°Ordre: ${praticien.numeroOrdre}`,
+    10,
+    25
   );
 
   // Ajout de l'image annotée
-  doc.addImage(canvasSection.data, "PNG", 10, 30, 277, 190);
+  doc.addImage(canvasSection.data, "PNG", 10, 35, 277, 190);
 
   // Pied de page
   doc.setFontSize(8);
@@ -357,9 +424,33 @@ async function exporterPDF() {
   doc.text("© 2024 Cabinet d'Optométrie - Tous droits réservés", 10, 200);
 
   // Téléchargement
-  doc.save(
-    `examen-${patient.prenom || ""}-${patient.nom || ""}-${examId}.pdf`
-  );
+  doc.save(`examen-${patient.prenom || ""}-${patient.nom || ""}-${examId}.pdf`);
+}
+
+// Ajout des gestionnaires d'événements souris
+function onMouseDown(event) {
+  const touch = {
+    clientX: event.clientX,
+    clientY: event.clientY,
+    touchType: "stylus",
+  };
+  onTouchStart({ touches: [touch] });
+}
+
+function onMouseMove(event) {
+  if (!drawing) return;
+  const touch = {
+    clientX: event.clientX,
+    clientY: event.clientY,
+    touchType: "stylus",
+  };
+  onTouchMove({ touches: [touch] });
+}
+
+function onMouseUp() {
+  if (drawing) {
+    onTouchEnd({ touches: [] });
+  }
 }
 </script>
 
@@ -368,8 +459,52 @@ async function exporterPDF() {
   position: relative;
   border: 1px solid #000;
   touch-action: none;
+  width: 100%;
+  height: 100%;
+  background-color: white;
 }
+
 .drawing-area canvas {
   display: block;
+  width: 100%;
+  height: 100%;
+  touch-action: none;
+}
+
+/* Styles spécifiques pour iPad */
+@media (hover: none) and (pointer: coarse) {
+  .drawing-area {
+    -webkit-tap-highlight-color: transparent;
+    -webkit-touch-callout: none;
+    user-select: none;
+  }
+
+  .v-btn {
+    min-height: 48px;
+    font-size: 16px;
+  }
+
+  .v-slider {
+    min-height: 48px;
+  }
+
+  .v-slider-thumb {
+    width: 24px !important;
+    height: 24px !important;
+  }
+}
+
+/* Ajustements pour le mode paysage */
+@media (orientation: landscape) {
+  .drawing-area {
+    height: calc(100vh - 32px);
+  }
+}
+
+/* Ajustements pour le mode portrait */
+@media (orientation: portrait) {
+  .drawing-area {
+    height: calc(100vh - 32px);
+  }
 }
 </style>

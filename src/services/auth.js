@@ -10,7 +10,7 @@ class AuthService {
     await dbService.init();
   }
 
-  async register(username, password) {
+  async register(username, password, nom, prenom, numeroOrdre) {
     try {
       await this.init();
 
@@ -25,7 +25,9 @@ class AuthService {
         id: Date.now().toString(),
         username,
         password, // Note: En production, il faudrait hasher le mot de passe
-        name: username,
+        nom,
+        prenom,
+        numeroOrdre,
         createdAt: new Date().toISOString(),
       };
 

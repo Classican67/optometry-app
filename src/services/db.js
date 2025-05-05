@@ -41,6 +41,9 @@ const dbPromise = (async () => {
             console.log("Création du store 'users'");
             const userStore = db.createObjectStore("users", { keyPath: "id" });
             userStore.createIndex("username", "username", { unique: true });
+            userStore.createIndex("numeroOrdre", "numeroOrdre", {
+              unique: true,
+            });
           }
 
           // Créer le store des PDFs partiels

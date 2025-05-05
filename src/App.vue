@@ -44,6 +44,7 @@
 import { computed, ref } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import { authService } from "./services/auth";
+import { dbService } from "./services/db";
 import { pdfService } from "./services/pdfService";
 
 const router = useRouter();
@@ -112,6 +113,12 @@ const currentStep = computed(() => {
 });
 
 const isStepAccessible = (step) => {
+  if (step === 1) return true; // L'identification est toujours accessible
+  if (step === 2) {
+    // Histoire de cas
+    const exam = dbService.getExam(route.params.examId);
+    return exam?.patient?.nom && exam?.patient?.prenom;
+  }
   return step <= currentStep.value + 1;
 };
 
@@ -124,6 +131,12 @@ const exportPDF = async () => {
     const examId = route.params.examId;
     if (!examId) {
       alert("Veuillez commencer un examen avant d'exporter");
+      return;
+    }
+
+    const exam = await dbService.getExam(examId);
+    if (!exam?.patient?.nom || !exam?.patient?.prenom) {
+      alert("Veuillez d'abord compléter l'identification du patient");
       return;
     }
 
