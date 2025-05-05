@@ -93,6 +93,12 @@ const menuItems = computed(() => {
       to: `/lesions/${examId}`,
       step: 5,
     },
+    {
+      title: "Examen de Vue",
+      icon: "mdi-eye-check",
+      to: `/examen-vue/${examId}`,
+      step: 6,
+    },
   ];
 });
 
