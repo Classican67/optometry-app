@@ -1,6 +1,7 @@
 import { createRouter, createWebHistory } from "vue-router";
 import { authService } from "../services/auth";
 import LesionsCanvas from "../views/LesionsCanvas.vue";
+import Profile from "../views/Profile.vue";
 import RefractionObjective from "../views/RefractionObjective.vue";
 import RefractionSubjective from "../views/RefractionSubjective.vue";
 
@@ -29,9 +30,15 @@ const routes = [
     meta: { requiresAuth: true },
   },
   {
-    path: "/histoire/:examId",
-    name: "Histoire",
-    component: () => import("../views/HistoireCas.vue"),
+    path: "/examen/:examId",
+    name: "Examen",
+    component: () => import("../views/Examen.vue"),
+    meta: { requiresAuth: true },
+  },
+  {
+    path: "/reference/:examId",
+    name: "Reference",
+    component: () => import("../views/Reference.vue"),
     meta: { requiresAuth: true },
   },
   {
@@ -53,6 +60,12 @@ const routes = [
     name: "Lesions",
     component: LesionsCanvas,
     props: true,
+    meta: { requiresAuth: true },
+  },
+  {
+    path: "/profile",
+    name: "Profile",
+    component: Profile,
     meta: { requiresAuth: true },
   },
 ];

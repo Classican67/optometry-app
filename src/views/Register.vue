@@ -103,6 +103,18 @@ const submitForm = async () => {
       throw new Error("Veuillez remplir tous les champs requis");
     }
 
+    // Vérifier que le mot de passe est suffisamment fort
+    if (form.value.password.length < 6) {
+      throw new Error("Le mot de passe doit contenir au moins 6 caractères");
+    }
+
+    // Vérifier que le numéro d'ordre est valide
+    if (!/^\d+$/.test(form.value.numeroOrdre)) {
+      throw new Error(
+        "Le numéro d'ordre doit contenir uniquement des chiffres"
+      );
+    }
+
     await authService.register(
       form.value.username,
       form.value.password,
@@ -111,8 +123,10 @@ const submitForm = async () => {
       form.value.numeroOrdre
     );
 
+    // Rediriger vers la page d'accueil après l'inscription réussie
     router.push("/");
   } catch (error) {
+    console.error("Erreur lors de l'inscription:", error);
     alert(error.message || "Une erreur est survenue lors de l'inscription");
   } finally {
     loading.value = false;

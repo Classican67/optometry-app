@@ -45,34 +45,45 @@
           <v-row>
             <v-col cols="12">
               <v-text-field
-                v-model="form.email"
-                label="Email"
-                type="email"
+                v-model="form.adresse"
+                label="Adresse"
+                required
+                :rules="[(v) => !!v || 'L\'adresse est requise']"
+              ></v-text-field>
+            </v-col>
+          </v-row>
+
+          <v-row>
+            <v-col cols="12" md="6">
+              <v-text-field
+                v-model="form.ville"
+                label="Ville"
+                required
+                :rules="[(v) => !!v || 'La ville est requise']"
+              ></v-text-field>
+            </v-col>
+            <v-col cols="12" md="6">
+              <v-text-field
+                v-model="form.codePostal"
+                label="Code postal"
+                required
+                :rules="[(v) => !!v || 'Le code postal est requis']"
               ></v-text-field>
             </v-col>
           </v-row>
 
           <v-row>
             <v-col cols="12">
-              <v-textarea
-                v-model="form.adresse"
-                label="Adresse"
-                rows="2"
-              ></v-textarea>
-            </v-col>
-          </v-row>
-
-          <v-row>
-            <v-col cols="12" md="6">
               <v-text-field
-                v-model="form.numeroSecu"
-                label="Numéro de sécurité sociale"
-              ></v-text-field>
-            </v-col>
-            <v-col cols="12" md="6">
-              <v-text-field
-                v-model="form.mutuelle"
-                label="Mutuelle"
+                v-model="form.email"
+                label="Courriel"
+                type="email"
+                :rules="[
+                  (v) =>
+                    !v ||
+                    /.+@.+\..+/.test(v) ||
+                    'L\'adresse email doit être valide',
+                ]"
               ></v-text-field>
             </v-col>
           </v-row>
@@ -105,10 +116,10 @@ const form = ref({
   prenom: "",
   dateNaissance: "",
   telephone: "",
-  email: "",
   adresse: "",
-  numeroSecu: "",
-  mutuelle: "",
+  ville: "",
+  codePostal: "",
+  email: "",
 });
 
 const formRef = ref(null);
@@ -131,10 +142,10 @@ const loadPatientData = async (examId) => {
         prenom: exam.patient.prenom || "",
         dateNaissance: dateNaissance,
         telephone: exam.patient.telephone || "",
-        email: exam.patient.email || "",
         adresse: exam.patient.adresse || "",
-        numeroSecu: exam.patient.numeroSecu || "",
-        mutuelle: exam.patient.mutuelle || "",
+        ville: exam.patient.ville || "",
+        codePostal: exam.patient.codePostal || "",
+        email: exam.patient.email || "",
       };
     }
   } catch (error) {
@@ -179,7 +190,12 @@ const submitForm = async () => {
     const formData = JSON.parse(JSON.stringify(form.value));
 
     // Sauvegarder la section d'identification
-    await dbService.saveSection(examId, "identification", formData);
+    await dbService.saveSection({
+      examId: examId,
+      name: "identification",
+      data: formData,
+      updatedAt: now,
+    });
 
     // Générer le PDF de la section
     await pdfService.generateSectionPDF(examId, "identification", formData);
@@ -187,13 +203,16 @@ const submitForm = async () => {
     // Mettre à jour l'examen avec les informations du patient
     const exam = await dbService.getExam(examId);
     if (exam) {
-      exam.patient = formData;
-      exam.updatedAt = now;
-      await dbService.saveExam(exam);
+      const updatedExam = {
+        ...exam,
+        patient: formData,
+        updatedAt: now,
+      };
+      await dbService.saveExam(updatedExam);
     }
 
-    // Rediriger vers l'histoire de cas
-    router.replace(`/histoire/${examId}`);
+    // Rediriger vers l'examen
+    router.replace(`/examen/${examId}`);
   } catch (error) {
     console.error("Erreur lors de la sauvegarde:", error);
     alert(error.message || "Une erreur est survenue lors de la sauvegarde");

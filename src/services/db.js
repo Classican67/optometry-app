@@ -1,74 +1,115 @@
-import { openDB } from "idb";
+import { deleteDB, openDB } from "idb";
 
-const DB_NAME = "optometry-app";
-const DB_VERSION = 2;
+const DB_NAME = "optometryDB";
+const DB_VERSION = 4;
 
 console.log("Début de l'initialisation de la base de données...");
 
-const dbPromise = (async () => {
+// Fonction pour supprimer la base de données existante
+const deleteExistingDB = async () => {
   try {
-    console.log("Tentative d'ouverture de la base de données...");
-    const db = await openDB(DB_NAME, DB_VERSION, {
-      upgrade(db, oldVersion) {
-        console.log(
-          "Mise à jour de la base de données, version actuelle:",
-          oldVersion
-        );
-
-        if (oldVersion < 1) {
-          console.log("Création des stores initiaux...");
-          // Créer le store pour les examens
-          if (!db.objectStoreNames.contains("exams")) {
-            console.log("Création du store 'exams'");
-            const examStore = db.createObjectStore("exams", { keyPath: "id" });
-            examStore.createIndex("userId", "userId", { unique: false });
-          }
-
-          // Créer le store pour les sections
-          if (!db.objectStoreNames.contains("sections")) {
-            console.log("Création du store 'sections'");
-            const sectionStore = db.createObjectStore("sections", {
-              keyPath: ["examId", "sectionName"],
-            });
-            sectionStore.createIndex("examId", "examId", { unique: false });
-          }
-        }
-
-        if (oldVersion < 2) {
-          console.log("Mise à jour vers la version 2...");
-          // Créer le store pour les utilisateurs
-          if (!db.objectStoreNames.contains("users")) {
-            console.log("Création du store 'users'");
-            const userStore = db.createObjectStore("users", { keyPath: "id" });
-            userStore.createIndex("username", "username", { unique: true });
-            userStore.createIndex("numeroOrdre", "numeroOrdre", {
-              unique: true,
-            });
-          }
-
-          // Créer le store des PDFs partiels
-          if (!db.objectStoreNames.contains("pdfs")) {
-            console.log("Création du store 'pdfs'");
-            const pdfStore = db.createObjectStore("pdfs", {
-              keyPath: ["userId", "examId", "sectionId"],
-            });
-            pdfStore.createIndex("by-exam", ["userId", "examId"]);
-          }
-        }
-      },
-    });
-    console.log("Base de données ouverte avec succès");
-    return db;
+    await deleteDB(DB_NAME);
+    console.log("Base de données supprimée avec succès");
   } catch (error) {
     console.error(
-      "Erreur critique lors de l'initialisation de la base de données:",
+      "Erreur lors de la suppression de la base de données:",
       error
     );
-    throw new Error(
-      `Impossible d'accéder à la base de données: ${error.message}`
-    );
   }
-})();
+};
+
+// Créer une promesse unique pour l'initialisation de la base de données
+let dbPromise = null;
+
+const getDBPromise = async () => {
+  if (!dbPromise) {
+    console.log("Début de l'initialisation du service DB...");
+    try {
+      console.log(
+        "Tentative de connexion à la base de données:",
+        DB_NAME,
+        "version:",
+        DB_VERSION
+      );
+      dbPromise = openDB(DB_NAME, DB_VERSION, {
+        upgrade(db, oldVersion, newVersion) {
+          console.log(
+            "Mise à jour de la base de données de la version",
+            oldVersion,
+            "à",
+            newVersion
+          );
+          console.log("Stores existants:", db.objectStoreNames);
+
+          // Créer les object stores
+          if (!db.objectStoreNames.contains("users")) {
+            const userStore = db.createObjectStore("users", {
+              keyPath: "id",
+              autoIncrement: true,
+            });
+            userStore.createIndex("username", "username", { unique: true });
+            console.log("Store 'users' créé");
+          }
+
+          if (!db.objectStoreNames.contains("exams")) {
+            const examStore = db.createObjectStore("exams", {
+              keyPath: "id",
+              autoIncrement: true,
+            });
+            examStore.createIndex("userId", "userId");
+            examStore.createIndex("date", "date");
+            console.log("Store 'exams' créé avec les index userId et date");
+          }
+
+          if (!db.objectStoreNames.contains("sections")) {
+            const sectionStore = db.createObjectStore("sections", {
+              keyPath: ["examId", "name"],
+            });
+            sectionStore.createIndex("examId", "examId");
+            console.log("Store 'sections' créé");
+          }
+
+          if (!db.objectStoreNames.contains("signatures")) {
+            const signatureStore = db.createObjectStore("signatures", {
+              keyPath: "id",
+              autoIncrement: true,
+            });
+            signatureStore.createIndex("examId", "examId");
+            console.log("Store 'signatures' créé");
+          }
+        },
+        blocked() {
+          console.warn("Base de données bloquée par une autre connexion");
+        },
+        blocking() {
+          console.warn(
+            "Une autre connexion tente de mettre à jour la base de données"
+          );
+        },
+        terminated() {
+          console.warn("Connexion à la base de données terminée");
+          dbPromise = null;
+        },
+      });
+
+      console.log("Base de données initialisée avec succès");
+      return dbPromise;
+    } catch (error) {
+      console.error(
+        "Erreur lors de l'initialisation de la base de données:",
+        error
+      );
+      dbPromise = null;
+      throw error;
+    }
+  }
+  return dbPromise;
+};
+
+// Réinitialiser la promesse de la base de données
+const resetDBPromise = () => {
+  dbPromise = null;
+};
 
 class DBService {
   constructor() {
@@ -81,7 +122,7 @@ class DBService {
     if (!this.db) {
       try {
         console.log("Tentative de connexion à la base de données...");
-        this.db = await dbPromise;
+        this.db = await getDBPromise();
         console.log("Connexion à la base de données réussie");
         console.log("Stores disponibles:", this.db.objectStoreNames);
         return this.db;
@@ -117,13 +158,14 @@ class DBService {
 
   async resetDatabase() {
     try {
-      console.log("Tentative de suppression de la base de données...");
-      await indexedDB.deleteDatabase(DB_NAME);
-      console.log("Base de données supprimée avec succès");
-      this.db = null;
-      // Réinitialiser la base de données
-      await this.init();
+      console.log("Début de la réinitialisation de la base de données...");
+      await this.deleteDatabase();
+      console.log(
+        "Base de données supprimée, tentative de réinitialisation..."
+      );
+      this.db = await getDBPromise();
       console.log("Base de données réinitialisée avec succès");
+      return this.db;
     } catch (error) {
       console.error(
         "Erreur lors de la réinitialisation de la base de données:",
@@ -142,12 +184,26 @@ class DBService {
     try {
       const tx = this.db.transaction("users", "readwrite");
       const store = tx.objectStore("users");
-      await store.put(user);
+
+      // Vérifier si l'utilisateur existe déjà
+      const existingUser = await store.index("username").get(user.username);
+      if (existingUser) {
+        console.log("Mise à jour de l'utilisateur existant");
+        user.id = existingUser.id;
+        await store.put(user);
+      } else {
+        console.log("Création d'un nouvel utilisateur");
+        await store.add(user);
+      }
+
       await tx.done;
       console.log("Utilisateur sauvegardé avec succès:", user);
+      return user;
     } catch (error) {
       console.error("Erreur lors de la sauvegarde de l'utilisateur:", error);
-      throw new Error("Impossible de sauvegarder l'utilisateur");
+      throw new Error(
+        "Impossible de sauvegarder l'utilisateur: " + error.message
+      );
     }
   }
 
@@ -157,13 +213,31 @@ class DBService {
     try {
       const tx = this.db.transaction("users", "readonly");
       const store = tx.objectStore("users");
-      const index = store.index("username");
-      const user = await index.get(username);
+      const user = await store.index("username").get(username);
       console.log("Résultat de la recherche:", user);
+      await tx.done;
       return user;
     } catch (error) {
       console.error("Erreur lors de la recherche de l'utilisateur:", error);
-      throw error;
+      throw new Error("Impossible de trouver l'utilisateur: " + error.message);
+    }
+  }
+
+  async getAllUsers() {
+    console.log("Récupération de tous les utilisateurs");
+    if (!this.db) await this.init();
+    try {
+      const tx = this.db.transaction("users", "readonly");
+      const store = tx.objectStore("users");
+      const users = await store.getAll();
+      console.log("Utilisateurs trouvés:", users);
+      await tx.done;
+      return users;
+    } catch (error) {
+      console.error("Erreur lors de la récupération des utilisateurs:", error);
+      throw new Error(
+        "Impossible de récupérer les utilisateurs: " + error.message
+      );
     }
   }
 
@@ -174,13 +248,21 @@ class DBService {
     try {
       const tx = this.db.transaction("exams", "readwrite");
       const store = tx.objectStore("exams");
-      await store.put({
-        ...exam,
-        updatedAt: new Date().toISOString(),
-        status: exam.status || "En cours",
-      });
+
+      // Vérifier si l'examen existe déjà
+      const existingExam = await store.get(exam.id);
+
+      if (existingExam) {
+        // Mettre à jour l'examen existant
+        await store.put(exam);
+      } else {
+        // Créer un nouvel examen
+        const id = await store.add(exam);
+        exam.id = id;
+      }
+
       await tx.done;
-      console.log("Examen sauvegardé avec succès");
+      return exam;
     } catch (error) {
       console.error("Erreur lors de la sauvegarde de l'examen:", error);
       throw new Error("Impossible de sauvegarder l'examen");
@@ -195,6 +277,7 @@ class DBService {
       const store = tx.objectStore("exams");
       const exam = await store.get(examId);
       console.log("Examen trouvé:", exam);
+      await tx.done;
       return exam;
     } catch (error) {
       console.error("Erreur lors de la récupération de l'examen:", error);
@@ -208,11 +291,13 @@ class DBService {
     try {
       const tx = this.db.transaction("exams", "readonly");
       const store = tx.objectStore("exams");
-      const index = store.index("userId");
-      const exams = await index.getAll(userId);
-      console.log("Examens trouvés pour l'utilisateur", userId, ":", exams);
-      return exams.sort(
-        (a, b) => new Date(b.updatedAt) - new Date(a.updatedAt)
+      const exams = await store.getAll();
+      // Filtrer les examens par userId
+      const userExams = exams.filter((exam) => exam.userId === userId);
+      console.log("Examens trouvés pour l'utilisateur", userId, ":", userExams);
+      await tx.done;
+      return userExams.sort(
+        (a, b) => new Date(b.createdAt) - new Date(a.createdAt)
       );
     } catch (error) {
       console.error("Erreur lors de la récupération des examens:", error);
@@ -221,41 +306,39 @@ class DBService {
   }
 
   // Gestion des sections
-  async saveSection(examId, sectionName, data) {
-    console.log("Tentative de sauvegarde de la section:", {
-      examId,
-      sectionName,
-      data,
-    });
+  async saveSection(section) {
+    console.log("Tentative de sauvegarde de la section:", section);
     if (!this.db) await this.init();
     try {
       const tx = this.db.transaction("sections", "readwrite");
       const store = tx.objectStore("sections");
-      await store.put({ examId, sectionName, data });
-      await tx.done;
 
-      // Mettre à jour les informations de l'examen si c'est la section d'identification
-      if (sectionName === "identification") {
-        console.log("Mise à jour des informations du patient dans l'examen");
-        const examTx = this.db.transaction("exams", "readwrite");
-        const examStore = examTx.objectStore("exams");
-        const exam = await examStore.get(examId);
+      // Vérifier si la section existe déjà
+      const existingSection = await store.get([section.examId, section.name]);
 
-        if (exam) {
-          exam.patient = {
-            ...exam.patient,
-            ...data,
-          };
-          exam.updatedAt = new Date().toISOString();
-          await examStore.put(exam);
-        }
-
-        await examTx.done;
+      if (existingSection) {
+        // Mettre à jour la section existante
+        const updatedSection = {
+          ...existingSection,
+          data: section.data,
+          updatedAt: section.updatedAt || new Date().toISOString(),
+        };
+        await store.put(updatedSection);
+        return updatedSection;
+      } else {
+        // Créer une nouvelle section
+        const newSection = {
+          examId: section.examId,
+          name: section.name,
+          data: section.data,
+          updatedAt: section.updatedAt || new Date().toISOString(),
+        };
+        await store.put(newSection);
+        return newSection;
       }
-      console.log("Section sauvegardée avec succès");
     } catch (error) {
       console.error("Erreur lors de la sauvegarde de la section:", error);
-      throw new Error("Impossible de sauvegarder les données de la section");
+      throw new Error("Impossible de sauvegarder la section");
     }
   }
 
@@ -267,6 +350,7 @@ class DBService {
       const store = tx.objectStore("sections");
       const section = await store.get([examId, sectionName]);
       console.log("Section trouvée:", section);
+      await tx.done;
       return section;
     } catch (error) {
       console.error("Erreur lors de la récupération de la section:", error);
@@ -283,6 +367,7 @@ class DBService {
       const index = store.index("examId");
       const sections = await index.getAll(examId);
       console.log("Sections trouvées:", sections);
+      await tx.done;
       return sections.map((section) => ({
         ...section,
         updatedAt: new Date(section.updatedAt),
@@ -329,6 +414,7 @@ class DBService {
       if (pdf) {
         pdf.updatedAt = new Date(pdf.updatedAt);
       }
+      await tx.done;
       return pdf;
     } catch (error) {
       console.error("Erreur lors de la récupération du PDF:", error);
@@ -391,6 +477,25 @@ class DBService {
       console.error("Erreur lors de la suppression de l'examen:", error);
       throw error;
     }
+  }
+
+  // Méthodes pour la gestion des signatures
+  async saveUserSignature(userId, signatureData) {
+    const tx = this.db.transaction("signatures", "readwrite");
+    const store = tx.objectStore("signatures");
+
+    await store.put({
+      userId,
+      signatureData,
+      createdAt: new Date().toISOString(),
+    });
+  }
+
+  async getUserSignature(userId) {
+    const tx = this.db.transaction("signatures", "readonly");
+    const store = tx.objectStore("signatures");
+
+    return await store.get(userId);
   }
 }
 

@@ -6,6 +6,7 @@
         <v-btn color="primary" @click="createNewExam" class="mr-2">
           Nouvel examen
         </v-btn>
+
         <v-btn color="error" @click="logout"> Déconnexion </v-btn>
       </v-col>
     </v-row>

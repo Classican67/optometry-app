@@ -1,4 +1,5 @@
 import { jsPDF } from "jspdf";
+import { authService } from "./auth";
 import { dbService } from "./db";
 
 // Couleurs pour les différentes sections
@@ -98,7 +99,12 @@ export const pdfService = {
 
       // Sauvegarde dans IndexedDB
       const pdfBlob = doc.output("blob");
-      await dbService.saveSection(examId, `${sectionName}_pdf`, pdfBlob);
+      await dbService.saveSection({
+        examId: examId,
+        name: `${sectionName}_pdf`,
+        data: pdfBlob,
+        updatedAt: new Date().toISOString(),
+      });
 
       return pdfBlob;
     } catch (error) {
@@ -117,8 +123,18 @@ export const pdfService = {
         throw new Error("ID d'examen requis");
       }
 
-      const doc = new jsPDF();
-      const sections = await dbService.getAllSections(examId);
+      const exam = await dbService.getExam(examId);
+      const sections = await dbService.getSectionsByExamId(examId);
+      const optometriste = await dbService.getOptometriste();
+      const signature = await dbService.getUserSignature(
+        authService.getCurrentUser()?.id
+      );
+
+      const doc = new jsPDF({
+        orientation: "portrait",
+        unit: "mm",
+        format: "a4",
+      });
 
       if (!sections || sections.length === 0) {
         throw new Error("Aucune section trouvée pour cet examen");
@@ -190,6 +206,27 @@ export const pdfService = {
       doc.setFontSize(8);
       doc.setTextColor(100, 100, 100);
       doc.text("© 2024 Cabinet d'Optométrie - Tous droits réservés", 20, 280);
+
+      // Ajouter la signature à la fin du document
+      if (signature?.signatureData) {
+        const img = new Image();
+        img.src = signature.signatureData;
+        await new Promise((resolve) => {
+          img.onload = () => {
+            const imgWidth = 50;
+            const imgHeight = (img.height * imgWidth) / img.width;
+            doc.addImage(
+              img,
+              "PNG",
+              doc.internal.pageSize.width - imgWidth - 20,
+              doc.internal.pageSize.height - imgHeight - 20,
+              imgWidth,
+              imgHeight
+            );
+            resolve();
+          };
+        });
+      }
 
       return doc.output("blob");
     } catch (error) {
