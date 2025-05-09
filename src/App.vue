@@ -191,6 +191,11 @@ const isStepAccessible = (step) => {
     return true;
   }
 
+  // Permettre la navigation entre Examen et Référence sans validation
+  if (step === 2 || step === 3) {
+    return true;
+  }
+
   return false;
 };
 

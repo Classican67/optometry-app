@@ -230,6 +230,18 @@ const isDragging = ref(false);
 const startDragY = ref(0);
 const startScrollTop = ref(0);
 
+// Ajouter une variable pour stocker l'image du background
+let backgroundImage = null;
+
+// Ajouter des variables pour stocker les dimensions originales du PDF
+let originalPdfWidth = 0;
+let originalPdfHeight = 0;
+let currentScale = 1;
+
+// Ajouter une variable pour le debounce
+let saveTimeout = null;
+const SAVE_DELAY = 1000; // 1 seconde de délai
+
 function setCanvasToImageSize() {
   if (backgroundImg && pencilCanvas.value) {
     // Définir les dimensions exactes du canvas
@@ -249,33 +261,63 @@ function setCanvasToImageSize() {
 function drawBackgroundAndPaths() {
   if (!pencilCanvas.value || !ctx) return;
 
-  // Effacer le canvas
-  ctx.clearRect(0, 0, pencilCanvas.value.width, pencilCanvas.value.height);
+  // Utiliser requestAnimationFrame pour optimiser le rendu
+  requestAnimationFrame(() => {
+    // Sauvegarder l'état actuel du contexte
+    ctx.save();
 
-  // Redessiner les chemins
-  for (const path of paths) {
-    ctx.globalCompositeOperation = path.isEraser
-      ? "destination-out"
-      : "source-over";
-    ctx.strokeStyle = "#000";
-    ctx.lineWidth = path.size;
-    ctx.beginPath();
-    for (let i = 0; i < path.points.length; i++) {
-      const pt = path.points[i];
-      if (i === 0) {
-        ctx.moveTo(pt.x, pt.y);
+    // Effacer le canvas
+    ctx.clearRect(0, 0, pencilCanvas.value.width, pencilCanvas.value.height);
+
+    // Redessiner le background s'il existe
+    if (backgroundImage) {
+      ctx.drawImage(backgroundImage, 0, 0);
+    }
+
+    // Optimiser le rendu des chemins
+    const batchSize = 50; // Nombre de chemins à dessiner par frame
+    let currentIndex = 0;
+
+    function drawNextBatch() {
+      const endIndex = Math.min(currentIndex + batchSize, paths.length);
+
+      for (let i = currentIndex; i < endIndex; i++) {
+        const path = paths[i];
+        ctx.globalCompositeOperation = path.isEraser
+          ? "destination-out"
+          : "source-over";
+        ctx.strokeStyle = "#000";
+        ctx.lineWidth = path.size;
+        ctx.beginPath();
+
+        // Optimiser le dessin des points
+        const points = path.points;
+        if (points.length > 0) {
+          ctx.moveTo(points[0].x, points[0].y);
+          for (let j = 1; j < points.length; j++) {
+            ctx.lineTo(points[j].x, points[j].y);
+          }
+        }
+
+        ctx.stroke();
+        ctx.closePath();
+      }
+
+      currentIndex = endIndex;
+      if (currentIndex < paths.length) {
+        requestAnimationFrame(drawNextBatch);
       } else {
-        ctx.lineTo(pt.x, pt.y);
+        // Restaurer l'état du contexte une fois tous les chemins dessinés
+        ctx.restore();
+        // Réinitialiser le mode de dessin
+        ctx.globalCompositeOperation = isEraser.value
+          ? "destination-out"
+          : "source-over";
       }
     }
-    ctx.stroke();
-    ctx.closePath();
-  }
 
-  // Réinitialiser le mode de dessin
-  ctx.globalCompositeOperation = isEraser.value
-    ? "destination-out"
-    : "source-over";
+    drawNextBatch();
+  });
 }
 
 function getStylusTouch(touches) {
@@ -304,15 +346,25 @@ function handleTouchStart(event) {
     currentPath = [];
     const touch = event.touches[0];
     const rect = pencilCanvas.value.getBoundingClientRect();
-    const px = touch.clientX - rect.left;
-    const py = touch.clientY - rect.top;
-    currentPath.push({ x: px, y: py });
-    ctx.beginPath();
-    ctx.moveTo(px, py);
-    if (isEraser.value) {
-      ctx.globalCompositeOperation = "destination-out";
-    } else {
-      ctx.globalCompositeOperation = "source-over";
+    const px =
+      (touch.clientX - rect.left) * (pencilCanvas.value.width / rect.width);
+    const py =
+      (touch.clientY - rect.top) * (pencilCanvas.value.height / rect.height);
+    if (
+      currentPath.length === 0 ||
+      Math.hypot(
+        px - currentPath[currentPath.length - 1].x,
+        py - currentPath[currentPath.length - 1].y
+      ) > 2
+    ) {
+      currentPath.push({ x: px, y: py });
+      ctx.beginPath();
+      ctx.moveTo(px, py);
+      if (isEraser.value) {
+        ctx.globalCompositeOperation = "destination-out";
+      } else {
+        ctx.globalCompositeOperation = "source-over";
+      }
     }
   }
 }
@@ -321,13 +373,25 @@ function handleTouchMove(event) {
   if (isDrawing && isApplePencil(event)) {
     const touch = event.touches[0];
     const rect = pencilCanvas.value.getBoundingClientRect();
-    const px = touch.clientX - rect.left;
-    const py = touch.clientY - rect.top;
-    currentPath.push({ x: px, y: py });
-    ctx.lineTo(px, py);
-    ctx.strokeStyle = "#000";
-    ctx.lineWidth = penSize.value;
-    ctx.stroke();
+    const px =
+      (touch.clientX - rect.left) * (pencilCanvas.value.width / rect.width);
+    const py =
+      (touch.clientY - rect.top) * (pencilCanvas.value.height / rect.height);
+
+    // Optimiser l'ajout des points
+    if (
+      currentPath.length === 0 ||
+      Math.hypot(
+        px - currentPath[currentPath.length - 1].x,
+        py - currentPath[currentPath.length - 1].y
+      ) > 2
+    ) {
+      currentPath.push({ x: px, y: py });
+      ctx.lineTo(px, py);
+      ctx.strokeStyle = "#000";
+      ctx.lineWidth = penSize.value;
+      ctx.stroke();
+    }
   }
 }
 
@@ -337,15 +401,28 @@ function handleTouchEnd(event) {
     drawing = false;
     ctx.closePath();
     if (currentPath.length > 1) {
+      const simplifiedPaths = paths.map((path) => ({
+        points: path.points.filter((_, i) => i % 2 === 0), // Réduire le nombre de points
+        size: path.size,
+        isEraser: path.isEraser,
+      }));
       paths.push({
         points: [...currentPath],
         size: penSize.value,
         isEraser: isEraser.value,
       });
-      undoStack.value.push(JSON.stringify(paths));
+      undoStack.value.push(JSON.stringify(simplifiedPaths));
       redoStack.value = [];
-      saveCanvasData();
-      saveCanvasImage();
+
+      // Utiliser le debounce pour la sauvegarde
+      if (saveTimeout) {
+        clearTimeout(saveTimeout);
+      }
+      saveTimeout = setTimeout(async () => {
+        await saveCanvasData();
+        await saveCanvasImage();
+        await saveBackgroundImage();
+      }, SAVE_DELAY);
     }
     currentPath = [];
   }
@@ -417,22 +494,26 @@ async function submitForm() {
   }
 }
 
-// Sauvegarder les paths dans la base
+// Optimiser saveCanvasData
 async function saveCanvasData() {
   const examId = route.params.examId;
   if (!examId) return;
   try {
-    // On sauvegarde le tableau paths sous forme de JSON pour la page courante
+    // Limiter la taille des données sauvegardées
+    const simplifiedPaths = paths.map((path) => ({
+      points: path.points.filter((_, i) => i % 2 === 0), // Réduire le nombre de points
+      size: path.size,
+      isEraser: path.isEraser,
+    }));
+
     await dbService.saveSection({
       examId: examId,
       name: `histoire-canvas-page-${currentPage.value}`,
-      data: JSON.stringify(paths),
+      data: JSON.stringify(simplifiedPaths),
       updatedAt: new Date().toISOString(),
     });
-    await saveCanvasImage();
   } catch (error) {
     console.error("Erreur lors de la sauvegarde des annotations:", error);
-    alert("Erreur lors de la sauvegarde des annotations");
   }
 }
 
@@ -441,48 +522,37 @@ async function loadCanvasData() {
   const examId = route.params.examId;
   if (!examId) return;
   try {
-    const saved = await dbService.getSection(
+    // Charger le background
+    const savedBackground = await dbService.getSection(
       examId,
-      `histoire-canvas-page-${currentPage.value}`
+      "histoire-canvas-background"
     );
-    if (saved && saved.data) {
-      try {
-        paths = JSON.parse(saved.data);
-        // On reconstruit l'historique pour permettre undo/redo sur l'état chargé
-        undoStack.value = [JSON.stringify(paths)];
-        redoStack.value = [];
-        // Redessiner les chemins
+    if (savedBackground && savedBackground.data) {
+      backgroundImage = new Image();
+      backgroundImage.onload = () => {
+        // Redessiner le canvas avec le background et les annotations
         drawBackgroundAndPaths();
-      } catch (e) {
-        console.error("Erreur lors du parsing des données:", e);
-        paths = [];
-        undoStack.value = [];
-        redoStack.value = [];
-      }
+        // Charger les annotations
+        loadAnnotations();
+      };
+      backgroundImage.src = savedBackground.data;
     } else {
-      paths = [];
-      undoStack.value = [];
-      redoStack.value = [];
+      // Si pas de background sauvegardé, charger uniquement les annotations
+      loadAnnotations();
     }
   } catch (error) {
-    console.error("Erreur lors du chargement des annotations:", error);
-    alert("Erreur lors du chargement des annotations");
-    paths = [];
-    undoStack.value = [];
-    redoStack.value = [];
+    console.error("Erreur lors du chargement du background:", error);
+    loadAnnotations();
   }
 }
 
+// Optimiser saveCanvasImage
 async function saveCanvasImage() {
   const examId = route.params.examId;
-  if (!examId) return;
+  if (!examId || !pencilCanvas.value) return;
   try {
-    const canvas = pencilCanvas.value;
-    if (!canvas) {
-      console.error("Canvas non trouvé");
-      return;
-    }
-    const dataUrl = canvas.toDataURL("image/png");
+    // Réduire la qualité de l'image pour optimiser la performance
+    const dataUrl = pencilCanvas.value.toDataURL("image/jpeg", 0.8);
     await dbService.saveSection({
       examId: examId,
       name: "histoire-canvas-image",
@@ -491,7 +561,6 @@ async function saveCanvasImage() {
     });
   } catch (error) {
     console.error("Erreur lors de la sauvegarde de l'image:", error);
-    alert("Erreur lors de la sauvegarde de l'image");
   }
 }
 
@@ -543,14 +612,49 @@ const loadPDF = async (pdfPath) => {
     // Calculer la taille du canvas pour maintenir le ratio
     const firstPage = await pdf.getPage(1);
     const viewport = firstPage.getViewport({ scale: 1.0 });
-    const optimalScale = calculateOptimalScale(viewport, containerWidth);
-    const scaledViewport = firstPage.getViewport({ scale: optimalScale });
+
+    // Stocker les dimensions originales du PDF
+    originalPdfWidth = viewport.width;
+    originalPdfHeight = viewport.height * pdf.numPages;
+    currentScale = calculateOptimalScale(viewport, containerWidth);
+    const scaledViewport = firstPage.getViewport({ scale: currentScale });
 
     // Calculer la hauteur totale pour toutes les pages
     const totalHeight = scaledViewport.height * pdf.numPages;
 
     // Mettre à jour le canvas principal
     if (pencilCanvas.value) {
+      // Créer un canvas temporaire pour le rendu complet
+      const tempCanvas = document.createElement("canvas");
+      const tempCtx = tempCanvas.getContext("2d");
+      tempCanvas.width = scaledViewport.width;
+      tempCanvas.height = totalHeight;
+
+      // Rendre chaque page sur le canvas temporaire
+      for (let pageNum = 1; pageNum <= pdf.numPages; pageNum++) {
+        const page = await pdf.getPage(pageNum);
+        const pageViewport = page.getViewport({ scale: currentScale });
+
+        // Créer un canvas temporaire pour chaque page
+        const pageCanvas = document.createElement("canvas");
+        const pageCtx = pageCanvas.getContext("2d");
+        pageCanvas.width = pageViewport.width;
+        pageCanvas.height = pageViewport.height;
+
+        // Rendre la page sur le canvas temporaire
+        await page.render({
+          canvasContext: pageCtx,
+          viewport: pageViewport,
+        }).promise;
+
+        // Calculer la position Y pour cette page
+        const yOffset = (pageNum - 1) * pageViewport.height;
+
+        // Dessiner la page sur le canvas temporaire principal
+        tempCtx.drawImage(pageCanvas, 0, yOffset);
+      }
+
+      // Mettre à jour le canvas principal avec les dimensions correctes
       pencilCanvas.value.width = scaledViewport.width;
       pencilCanvas.value.height = totalHeight;
       pencilCanvas.value.style.width = `${scaledViewport.width}px`;
@@ -559,29 +663,11 @@ const loadPDF = async (pdfPath) => {
       // Effacer le canvas principal
       ctx.clearRect(0, 0, pencilCanvas.value.width, pencilCanvas.value.height);
 
-      // Rendre chaque page
-      for (let pageNum = 1; pageNum <= pdf.numPages; pageNum++) {
-        const page = await pdf.getPage(pageNum);
-        const pageViewport = page.getViewport({ scale: optimalScale });
+      // Copier le contenu du canvas temporaire sur le canvas principal
+      ctx.drawImage(tempCanvas, 0, 0);
 
-        // Créer un canvas temporaire pour le rendu de la page
-        const tempCanvas = document.createElement("canvas");
-        const tempCtx = tempCanvas.getContext("2d");
-        tempCanvas.width = pageViewport.width;
-        tempCanvas.height = pageViewport.height;
-
-        // Rendre la page sur le canvas temporaire
-        await page.render({
-          canvasContext: tempCtx,
-          viewport: pageViewport,
-        }).promise;
-
-        // Calculer la position Y pour cette page
-        const yOffset = (pageNum - 1) * pageViewport.height;
-
-        // Dessiner la page sur le canvas principal
-        ctx.drawImage(tempCanvas, 0, yOffset);
-      }
+      // Sauvegarder le background
+      await saveBackgroundImage();
 
       // Réinitialiser les paramètres de dessin
       ctx.lineCap = "round";
@@ -590,12 +676,18 @@ const loadPDF = async (pdfPath) => {
       ctx.globalCompositeOperation = isEraser.value
         ? "destination-out"
         : "source-over";
-    }
 
-    // Sauvegarder la référence de la fiche chargée
-    loadedExamFile.value = pdfPath;
-    selectedPDF.value = pdfPath;
-    await saveLoadedExamFile();
+      // Sauvegarder la référence de la fiche chargée
+      loadedExamFile.value = pdfPath;
+      selectedPDF.value = pdfPath;
+      await saveLoadedExamFile();
+
+      // Charger les annotations sauvegardées
+      await loadCanvasData();
+
+      // Nettoyer les canvas temporaires
+      tempCanvas.remove();
+    }
 
     // Nettoyer l'URL de l'objet
     URL.revokeObjectURL(pdfUrl);
@@ -648,7 +740,12 @@ onMounted(async () => {
 
 watch(
   () => route.params.examId,
-  (id) => loadHistoryData(id)
+  async (newExamId) => {
+    if (newExamId) {
+      await loadHistoryData(newExamId);
+      await loadCanvasData();
+    }
+  }
 );
 
 async function validerExamen() {
@@ -710,14 +807,16 @@ async function exporterPDF() {
       // Récupérer la page du PDF original
       const page = await pdf.getPage(pageNum);
       const viewport = page.getViewport({ scale: 1.0 });
-      const canvas = document.createElement("canvas");
-      const context = canvas.getContext("2d");
-      canvas.width = viewport.width;
-      canvas.height = viewport.height;
+
+      // Créer un canvas temporaire pour le PDF
+      const pdfCanvas = document.createElement("canvas");
+      const pdfCtx = pdfCanvas.getContext("2d");
+      pdfCanvas.width = viewport.width;
+      pdfCanvas.height = viewport.height;
 
       // Rendre la page sur le canvas temporaire
       await page.render({
-        canvasContext: context,
+        canvasContext: pdfCtx,
         viewport: viewport,
       }).promise;
 
@@ -741,20 +840,23 @@ async function exporterPDF() {
       annotationCanvas.width = viewport.width;
       annotationCanvas.height = viewport.height;
 
-      // Dessiner les annotations
+      // Dessiner les annotations avec les coordonnées originales
       for (const path of pagePaths) {
         annotationCtx.globalCompositeOperation = path.isEraser
           ? "destination-out"
           : "source-over";
         annotationCtx.strokeStyle = "#000";
-        annotationCtx.lineWidth = path.size;
+        annotationCtx.lineWidth = path.size / currentScale; // Ajuster la taille du trait
         annotationCtx.beginPath();
         for (let i = 0; i < path.points.length; i++) {
           const pt = path.points[i];
+          // Convertir les coordonnées du canvas d'affichage vers les coordonnées originales
+          const originalX = pt.x / currentScale;
+          const originalY = pt.y / currentScale;
           if (i === 0) {
-            annotationCtx.moveTo(pt.x, pt.y);
+            annotationCtx.moveTo(originalX, originalY);
           } else {
-            annotationCtx.lineTo(pt.x, pt.y);
+            annotationCtx.lineTo(originalX, originalY);
           }
         }
         annotationCtx.stroke();
@@ -768,7 +870,7 @@ async function exporterPDF() {
       combinedCanvas.height = viewport.height;
 
       // Dessiner d'abord le PDF
-      combinedCtx.drawImage(canvas, 0, 0);
+      combinedCtx.drawImage(pdfCanvas, 0, 0);
       // Puis les annotations
       combinedCtx.drawImage(annotationCanvas, 0, 0);
 
@@ -935,12 +1037,88 @@ const clearLoadedExam = async () => {
     redoStack.value = [];
     currentPage.value = 1;
     totalPages.value = 1;
+    backgroundImage = null;
     if (ctx) {
       ctx.clearRect(0, 0, pencilCanvas.value.width, pencilCanvas.value.height);
+    }
+    // Supprimer le background sauvegardé
+    const examId = route.params.examId;
+    if (examId) {
+      await dbService.deleteSection(examId, "histoire-canvas-background");
     }
     await saveLoadedExamFile();
   }
 };
+
+// Ajouter une nouvelle fonction pour sauvegarder le background
+async function saveBackgroundImage() {
+  const examId = route.params.examId;
+  if (!examId || !pencilCanvas.value) return;
+  try {
+    // Créer un canvas temporaire pour le background uniquement
+    const tempCanvas = document.createElement("canvas");
+    const tempCtx = tempCanvas.getContext("2d");
+    tempCanvas.width = pencilCanvas.value.width;
+    tempCanvas.height = pencilCanvas.value.height;
+
+    // Copier le contenu du canvas principal
+    tempCtx.drawImage(pencilCanvas.value, 0, 0);
+
+    // Sauvegarder l'image du background
+    const dataUrl = tempCanvas.toDataURL("image/png");
+    await dbService.saveSection({
+      examId: examId,
+      name: "histoire-canvas-background",
+      data: dataUrl,
+      updatedAt: new Date().toISOString(),
+    });
+
+    // Stocker l'image en mémoire
+    backgroundImage = new Image();
+    backgroundImage.src = dataUrl;
+  } catch (error) {
+    console.error("Erreur lors de la sauvegarde du background:", error);
+  }
+}
+
+// Nouvelle fonction pour charger les annotations
+async function loadAnnotations() {
+  const examId = route.params.examId;
+  if (!examId) return;
+  try {
+    const saved = await dbService.getSection(
+      examId,
+      `histoire-canvas-page-${currentPage.value}`
+    );
+    if (saved && saved.data) {
+      try {
+        paths = JSON.parse(saved.data);
+        // On reconstruit l'historique pour permettre undo/redo sur l'état chargé
+        undoStack.value = [JSON.stringify(paths)];
+        redoStack.value = [];
+        // Redessiner les chemins
+        requestAnimationFrame(() => {
+          drawBackgroundAndPaths();
+        });
+      } catch (e) {
+        console.error("Erreur lors du parsing des données:", e);
+        paths = [];
+        undoStack.value = [];
+        redoStack.value = [];
+      }
+    } else {
+      paths = [];
+      undoStack.value = [];
+      redoStack.value = [];
+    }
+  } catch (error) {
+    console.error("Erreur lors du chargement des annotations:", error);
+    alert("Erreur lors du chargement des annotations");
+    paths = [];
+    undoStack.value = [];
+    redoStack.value = [];
+  }
+}
 </script>
 
 <style scoped>
