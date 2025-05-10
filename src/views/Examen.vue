@@ -170,6 +170,9 @@ import { authService } from "../services/auth";
 import { dbService } from "../services/db";
 import { examService } from "../services/examService";
 import { pdfService } from "../services/pdfService";
+import { referenceService } from "../services/referenceService";
+import { Capacitor } from "@capacitor/core";
+import { Filesystem, Directory } from '@capacitor/filesystem';
 
 // Configuration du worker PDF.js
 pdfjsLib.GlobalWorkerOptions.workerSrc = new URL(
@@ -905,10 +908,16 @@ async function exporterPDF() {
     doc.setTextColor(100, 100, 100);
     doc.text("© 2024 Cabinet d'Optométrie - Tous droits réservés", 10, 290);
 
-    // Téléchargement
-    doc.save(
-      `examen-${patient.prenom || ""}-${patient.nom || ""}-${examId}.pdf`
-    );
+    // Convertir le PDF en Blob
+    const finalPdfBlob = doc.output('blob');
+    const fileName = `examen-${patient.prenom || ""}-${patient.nom || ""}-${examId}.pdf`;
+
+    // Utiliser le service d'export
+    const result = await referenceService.exportPDF(finalPdfBlob, fileName);
+    
+    if (Capacitor.isNativePlatform()) {
+      alert(`Le document a été sauvegardé dans vos documents : ${result}`);
+    }
 
     // Nettoyer
     URL.revokeObjectURL(pdfUrl);

@@ -1,5 +1,18 @@
 {
-  "appId": "com.jeremy.optovue",
-  "appName": "OptoGo",
-  "webDir": "dist"
+  "appId": "optometry.app",
+  "appName": "optometry-app",
+  "webDir": "dist",
+  "ios": {
+    "contentInset": "always",
+    "allowsLinkPreview": true,
+    "scrollEnabled": true,
+    "backgroundColor": "#ffffff",
+    "allowNavigation": ["*"],
+    "limitsNavigationsToAppBoundDomains": false
+  },
+  "plugins": {
+    "Filesystem": {
+      "directory": "documents"
+    }
+  }
 }

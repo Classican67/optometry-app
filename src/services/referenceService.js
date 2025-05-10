@@ -1,4 +1,6 @@
 import { jsPDF } from "jspdf";
+import { Filesystem, Directory } from '@capacitor/filesystem';
+import { Capacitor } from '@capacitor/core';
 
 class ReferenceService {
   constructor() {
@@ -95,10 +97,37 @@ class ReferenceService {
   }
 
   // Exporter le PDF modifié
-  async exportPDF() {
+  async exportPDF(pdfBlob, fileName) {
     try {
-      const pdf = await this.updatePDF();
-      pdf.save("document_modifie.pdf");
+      if (Capacitor.isNativePlatform()) {
+        // Convertir le Blob en base64
+        const reader = new FileReader();
+        const base64Data = await new Promise((resolve) => {
+          reader.onloadend = () => {
+            const base64 = reader.result.split(',')[1];
+            resolve(base64);
+          };
+          reader.readAsDataURL(pdfBlob);
+        });
+
+        // Sauvegarder le fichier sur iOS
+        const result = await Filesystem.writeFile({
+          path: fileName,
+          data: base64Data,
+          directory: Directory.Documents,
+          recursive: true
+        });
+
+        return result.uri;
+      } else {
+        // Comportement web standard
+        const url = URL.createObjectURL(pdfBlob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = fileName;
+        link.click();
+        URL.revokeObjectURL(url);
+      }
     } catch (error) {
       console.error("Erreur lors de l'export du PDF:", error);
       throw error;

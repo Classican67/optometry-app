@@ -221,6 +221,7 @@ import { useRoute, useRouter } from "vue-router";
 import { authService } from "../services/auth";
 import { dbService } from "../services/db";
 import { referenceService } from "../services/referenceService";
+import { Capacitor } from '@capacitor/core';
 
 // Configuration du worker PDF.js
 pdfjsLib.GlobalWorkerOptions.workerSrc = new URL(
@@ -723,9 +724,20 @@ async function exportPDF() {
       imgWidth,
       imgHeight
     );
-    pdf.save("document_annote.pdf");
+
+    // Convertir le PDF en Blob
+    const pdfBlob = pdf.output('blob');
+    const fileName = `document_annote_${new Date().getTime()}.pdf`;
+
+    // Utiliser le service d'export
+    const result = await referenceService.exportPDF(pdfBlob, fileName);
+    
+    if (Capacitor.isNativePlatform()) {
+      alert(`Le document a été sauvegardé dans vos documents : ${result}`);
+    }
   } catch (error) {
     console.error("Erreur lors de l'export du PDF:", error);
+    alert("Erreur lors de l'export du PDF");
   }
 }
 
