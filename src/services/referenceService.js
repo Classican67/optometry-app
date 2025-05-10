@@ -8,23 +8,35 @@ class ReferenceService {
 
   // Charger la liste des PDFs disponibles
   async getPDFList() {
-    // Liste des PDFs présents dans public/pdfs (mise à jour manuelle)
+    // Liste des PDFs présents dans src/assets/fiche_reference
     return [
       {
         name: "Groupe IOL",
-        path: "/optometryDB/pdfs/Groupe IOL.pdf",
+        path: new URL(
+          "../assets/fiche_reference/Groupe IOL.pdf",
+          import.meta.url
+        ).href,
       },
       {
         name: "Clinique Belle Vue",
-        path: "/optometryDB/pdfs/Clinique Belle Vue.pdf",
+        path: new URL(
+          "../assets/fiche_reference/Clinique Belle Vue.pdf",
+          import.meta.url
+        ).href,
       },
       {
         name: "Université de Montréal",
-        path: "/optometryDB/pdfs/Université de Montréal.pdf",
+        path: new URL(
+          "../assets/fiche_reference/Université de Montréal.pdf",
+          import.meta.url
+        ).href,
       },
       {
         name: "Clinique de la Rétine de l'Est de Montréal",
-        path: "/optometryDB/pdfs/Clinique de la Rétine de l'Est de Montréal.pdf",
+        path: new URL(
+          "../assets/fiche_reference/clinique_de_la_retine_de_lest_de_mtl.pdf",
+          import.meta.url
+        ).href,
       },
     ];
   }

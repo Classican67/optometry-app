@@ -9,7 +9,7 @@ class ExamService {
     return [
       {
         name: "Fiche Annie",
-        path: "/optometryDB/fiche_examen/examen-annie.pdf",
+        path: "/fiche_examen/examen-annie.pdf",
       },
     ];
   }
