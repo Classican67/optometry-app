@@ -1,6 +1,8 @@
 import { jsPDF } from "jspdf";
 import { Filesystem, Directory } from '@capacitor/filesystem';
 import { Capacitor } from '@capacitor/core';
+import { nativePlatformService } from "./nativePlatformService";
+import { dbService } from "./db";
 
 class ReferenceService {
   constructor() {
@@ -60,74 +62,92 @@ class ReferenceService {
     }
   }
 
-  // Ajouter un champ de texte au PDF
-  addTextField(fieldId, x, y, width, height, label) {
-    this.fields.set(fieldId, {
-      x,
-      y,
-      width,
-      height,
-      label,
-      value: "",
-    });
-  }
-
-  // Mettre à jour la valeur d'un champ
-  updateField(fieldId, value) {
-    const field = this.fields.get(fieldId);
-    if (field) {
-      field.value = value;
-      this.updatePDF();
+  // Sauvegarder le document chargé
+  async saveLoadedFile(examId, filePath) {
+    try {
+      await dbService.saveSection({
+        examId: examId,
+        name: "loaded-reference-file",
+        data: filePath,
+        updatedAt: new Date().toISOString(),
+      });
+    } catch (error) {
+      console.error("Erreur lors de la sauvegarde du fichier chargé:", error);
+      throw error;
     }
   }
 
-  // Mettre à jour le PDF avec les valeurs des champs
-  async updatePDF() {
-    if (!this.currentPDF) return;
-
+  // Récupérer le document chargé
+  async getLoadedFile(examId) {
     try {
-      const pdf = new jsPDF();
-      // Ici, vous devrez implémenter la logique pour mettre à jour
-      // le PDF avec les valeurs des champs
-      return pdf;
+      const saved = await dbService.getSection(examId, "loaded-reference-file");
+      return saved?.data || null;
     } catch (error) {
-      console.error("Erreur lors de la mise à jour du PDF:", error);
+      console.error("Erreur lors de la récupération du fichier chargé:", error);
+      return null;
+    }
+  }
+
+  // Sauvegarder les annotations d'une page
+  async savePageAnnotations(examId, pageNum, annotations) {
+    try {
+      await dbService.saveSection({
+        examId: examId,
+        name: `reference-canvas-page-${pageNum}`,
+        data: JSON.stringify(annotations),
+        updatedAt: new Date().toISOString(),
+      });
+    } catch (error) {
+      console.error("Erreur lors de la sauvegarde des annotations:", error);
       throw error;
+    }
+  }
+
+  // Récupérer les annotations d'une page
+  async getPageAnnotations(examId, pageNum) {
+    try {
+      const saved = await dbService.getSection(examId, `reference-canvas-page-${pageNum}`);
+      if (saved?.data) {
+        return JSON.parse(saved.data);
+      }
+      return null;
+    } catch (error) {
+      console.error("Erreur lors de la récupération des annotations:", error);
+      return null;
+    }
+  }
+
+  // Sauvegarder le background
+  async saveBackground(examId, backgroundData) {
+    try {
+      await dbService.saveSection({
+        examId: examId,
+        name: "reference-canvas-background",
+        data: backgroundData,
+        updatedAt: new Date().toISOString(),
+      });
+    } catch (error) {
+      console.error("Erreur lors de la sauvegarde du background:", error);
+      throw error;
+    }
+  }
+
+  // Récupérer le background
+  async getBackground(examId) {
+    try {
+      const saved = await dbService.getSection(examId, "reference-canvas-background");
+      return saved?.data || null;
+    } catch (error) {
+      console.error("Erreur lors de la récupération du background:", error);
+      return null;
     }
   }
 
   // Exporter le PDF modifié
   async exportPDF(pdfBlob, fileName) {
     try {
-      if (Capacitor.isNativePlatform()) {
-        // Convertir le Blob en base64
-        const reader = new FileReader();
-        const base64Data = await new Promise((resolve) => {
-          reader.onloadend = () => {
-            const base64 = reader.result.split(',')[1];
-            resolve(base64);
-          };
-          reader.readAsDataURL(pdfBlob);
-        });
-
-        // Sauvegarder le fichier sur iOS
-        const result = await Filesystem.writeFile({
-          path: fileName,
-          data: base64Data,
-          directory: Directory.Documents,
-          recursive: true
-        });
-
-        return result.uri;
-      } else {
-        // Comportement web standard
-        const url = URL.createObjectURL(pdfBlob);
-        const link = document.createElement('a');
-        link.href = url;
-        link.download = fileName;
-        link.click();
-        URL.revokeObjectURL(url);
-      }
+      const result = await nativePlatformService.handleFileExport(pdfBlob, fileName);
+      return result;
     } catch (error) {
       console.error("Erreur lors de l'export du PDF:", error);
       throw error;

@@ -45,5 +45,11 @@
 	</array>
 	<key>UIViewControllerBasedStatusBarAppearance</key>
 	<true/>
+	<key>NSCameraUsageDescription</key>
+	<string>Cette application nécessite l'accès à la caméra pour prendre des photos des documents utiles.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>Cette application nécessite l'accès à la galerie photos pour sauvegarder les photos prises.</string>
+	<key>NSPhotoLibraryAddUsageDescription</key>
+	<string>Cette application nécessite l'accès à la galerie photos pour sauvegarder les photos prises.</string>
 </dict>
 </plist>

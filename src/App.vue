@@ -82,6 +82,7 @@ import { computed, onMounted, ref, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import { authService } from "./services/auth";
 import { dbService } from "./services/db";
+import { Capacitor } from '@capacitor/core';
 
 const router = useRouter();
 const route = useRoute();
@@ -109,7 +110,7 @@ const menuItems = computed(() => {
   const examId = route.params.examId;
   if (!examId) return [];
 
-  return [
+  const items = [
     {
       title: "Identification",
       icon: "mdi-account",
@@ -128,32 +129,19 @@ const menuItems = computed(() => {
       to: `/reference/${examId}`,
       step: 3,
     },
-    /** {
-      title: "Réfraction objective",
-      icon: "mdi-eye",
-      to: `/refraction-objective/${examId}`,
-      step: 3,
-    },
-    {
-      title: "Réfraction subjective",
-      icon: "mdi-eye-settings",
-      to: `/refraction-subjective/${examId}`,
-      step: 4,
-    },
-    {
-      title: "Lesions",
-      icon: "mdi-draw",
-      to: `/lesions/${examId}`,
-      step: 5,
-    },
-    {
-      title: "Examen de Vue",
-      icon: "mdi-eye-check",
-      to: `/examen-vue/${examId}`,
-      step: 6,
-    },
-    */
   ];
+
+  // Ajouter l'item Utiles uniquement sur iOS
+  if (Capacitor.isNativePlatform()) {
+    items.push({
+      title: "Documents utiles",
+      icon: "mdi-folder-multiple-image",
+      to: `/utiles/${examId}`,
+      step: 4,
+    });
+  }
+
+  return items;
 });
 
 const currentStep = computed(() => {
@@ -191,8 +179,8 @@ const isStepAccessible = (step) => {
     return true;
   }
 
-  // Permettre la navigation entre Examen et Référence sans validation
-  if (step === 2 || step === 3) {
+  // Permettre la navigation entre Examen, Référence et Utiles sans validation
+  if (step === 2 || step === 3 || step === 4) {
     return true;
   }
 

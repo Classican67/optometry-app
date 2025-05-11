@@ -431,27 +431,23 @@ const loadPDF = async (pdfPath) => {
       ctx.globalCompositeOperation = isEraser.value
         ? "destination-out"
         : "source-over";
-    }
 
-    // Restaurer les annotations et étiquettes sauvegardées
-    const savedData = localStorage.getItem(`reference_${pdfPath}`);
-    if (savedData) {
-      const { annotations, labels: savedLabels } = JSON.parse(savedData);
-      if (annotations && pencilCanvas.value) {
-        // Restaurer les annotations
-        pencilCanvas.value.loadAnnotations?.(annotations);
+      // Sauvegarder le background et le document chargé
+      const examId = route.params.examId;
+      if (examId) {
+        await referenceService.saveBackground(examId, pencilCanvas.value.toDataURL("image/png"));
+        await referenceService.saveLoadedFile(examId, pdfPath);
       }
-      if (savedLabels) {
-        // Restaurer les étiquettes
-        labels.value = savedLabels;
-      }
+
+      // Charger les annotations sauvegardées
+      await loadAnnotations();
     }
 
     // Nettoyer l'URL de l'objet
     URL.revokeObjectURL(pdfUrl);
     console.log("Chargement du PDF terminé avec succès");
 
-    return true; // Indiquer que le chargement est terminé
+    return true;
   } catch (error) {
     console.error("Erreur détaillée lors du chargement du PDF:", error);
     alert("Erreur lors du chargement du PDF. Veuillez réessayer.");
@@ -539,6 +535,9 @@ function handleTouchEnd(event) {
       });
       undoStack.value.push(JSON.stringify(paths));
       redoStack.value = [];
+      
+      // Sauvegarder l'état après chaque annotation
+      saveState();
     }
     currentPath = [];
   }
@@ -1463,90 +1462,96 @@ const resetForm = () => {
   currentFieldId.value = null;
 };
 
-// Modifier la fonction saveState pour inclure l'image du PDF
-const saveState = () => {
+// Modifier la fonction saveState pour utiliser le service
+const saveState = async () => {
   if (loadedExamFile.value) {
-    // Sauvegarder l'image du PDF de fond
-    const backgroundImage = pencilCanvas.value.toDataURL("image/png");
+    const examId = route.params.examId;
+    if (!examId) return;
 
-    const state = {
-      pdfPath: loadedExamFile.value,
-      backgroundImage: backgroundImage,
-      annotations: paths,
-      undoStack: undoStack.value,
-      redoStack: redoStack.value,
-      labels: labels.value,
-      patientLabel: patientLabel.value,
-      optoLabel: optoLabel.value,
-    };
-    localStorage.setItem(
-      `reference_state_${route.params.examId}`,
-      JSON.stringify(state)
-    );
-  }
-};
+    try {
+      // Sauvegarder le document chargé
+      await referenceService.saveLoadedFile(examId, loadedExamFile.value);
 
-// Modifier la fonction restoreState pour restaurer l'image du PDF
-const restoreState = async () => {
-  const savedState = localStorage.getItem(
-    `reference_state_${route.params.examId}`
-  );
-  if (savedState) {
-    const state = JSON.parse(savedState);
-    loadedExamFile.value = state.pdfPath;
-    selectedPDF.value = state.pdfPath;
+      // Sauvegarder l'image du PDF de fond
+      const backgroundImage = pencilCanvas.value.toDataURL("image/png");
+      await referenceService.saveBackground(examId, backgroundImage);
 
-    // Restaurer les annotations
-    paths = state.annotations || [];
-    undoStack.value = state.undoStack || [];
-    redoStack.value = state.redoStack || [];
-
-    // Restaurer les étiquettes
-    labels.value = state.labels || [];
-
-    // Restaurer l'image du PDF de fond
-    if (state.backgroundImage && pencilCanvas.value) {
-      const img = new Image();
-      img.onload = () => {
-        // Définir les dimensions du canvas
-        pencilCanvas.value.width = img.width;
-        pencilCanvas.value.height = img.height;
-        pencilCanvas.value.style.width = `${img.width}px`;
-        pencilCanvas.value.style.height = `${img.height}px`;
-
-        // Dessiner l'image de fond
-        ctx.drawImage(img, 0, 0);
-
-        // Redessiner les annotations
-        drawBackgroundAndPaths();
-
-        // Restaurer les étiquettes
-        if (state.patientLabel) {
-          patientLabel.value = state.patientLabel;
-          addPatientLabel();
-        }
-        if (state.optoLabel) {
-          optoLabel.value = state.optoLabel;
-          addOptoLabel();
-        }
-      };
-      img.src = state.backgroundImage;
-    } else {
-      // Si pas d'image sauvegardée, charger le PDF normalement
-      await loadPDF(state.pdfPath);
-      drawBackgroundAndPaths();
-
-      if (state.patientLabel) {
-        patientLabel.value = state.patientLabel;
-        await addPatientLabel();
-      }
-      if (state.optoLabel) {
-        optoLabel.value = state.optoLabel;
-        await addOptoLabel();
-      }
+      // Sauvegarder les annotations
+      await referenceService.savePageAnnotations(examId, 1, paths);
+    } catch (error) {
+      console.error("Erreur lors de la sauvegarde de l'état:", error);
     }
   }
 };
+
+// Modifier la fonction restoreState pour utiliser le service
+const restoreState = async () => {
+  const examId = route.params.examId;
+  if (!examId) return;
+
+  try {
+    // Récupérer le document chargé
+    const savedFile = await referenceService.getLoadedFile(examId);
+    if (savedFile) {
+      loadedExamFile.value = savedFile;
+      selectedPDF.value = savedFile;
+
+      // Récupérer le background
+      const backgroundImage = await referenceService.getBackground(examId);
+      if (backgroundImage && pencilCanvas.value) {
+        const img = new Image();
+        img.onload = () => {
+          // Définir les dimensions du canvas
+          pencilCanvas.value.width = img.width;
+          pencilCanvas.value.height = img.height;
+          pencilCanvas.value.style.width = `${img.width}px`;
+          pencilCanvas.value.style.height = `${img.height}px`;
+
+          // Dessiner l'image de fond
+          ctx.drawImage(img, 0, 0);
+
+          // Récupérer et dessiner les annotations
+          loadAnnotations();
+        };
+        img.src = backgroundImage;
+      } else {
+        // Si pas d'image sauvegardée, charger le PDF normalement
+        await loadPDF(savedFile);
+      }
+    }
+  } catch (error) {
+    console.error("Erreur lors de la restauration de l'état:", error);
+  }
+};
+
+// Modifier la fonction loadAnnotations
+async function loadAnnotations() {
+  const examId = route.params.examId;
+  if (!examId) return;
+  try {
+    const savedAnnotations = await referenceService.getPageAnnotations(examId, 1);
+    if (savedAnnotations) {
+      paths = savedAnnotations;
+      // On reconstruit l'historique pour permettre undo/redo sur l'état chargé
+      undoStack.value = [JSON.stringify(paths)];
+      redoStack.value = [];
+      // Redessiner les chemins
+      requestAnimationFrame(() => {
+        drawBackgroundAndPaths();
+      });
+    } else {
+      paths = [];
+      undoStack.value = [];
+      redoStack.value = [];
+    }
+  } catch (error) {
+    console.error("Erreur lors du chargement des annotations:", error);
+    alert("Erreur lors du chargement des annotations");
+    paths = [];
+    undoStack.value = [];
+    redoStack.value = [];
+  }
+}
 
 // Modifier le watcher de la route
 watch(
@@ -1568,7 +1573,7 @@ watch(
   }
 );
 
-// Ajouter un watcher pour sauvegarder l'état quand il change
+// Modifier le watcher pour sauvegarder l'état quand il change
 watch(
   [
     () => paths,

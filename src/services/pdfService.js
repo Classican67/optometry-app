@@ -95,7 +95,7 @@ export const pdfService = {
       // Pied de page
       doc.setFontSize(8);
       doc.setTextColor(100, 100, 100);
-      doc.text("© 2024 Cabinet d'Optométrie - Tous droits réservés", 20, 280);
+      doc.text("© 2025 OptoScribe - Tous droits réservés", 20, 280);
 
       // Sauvegarde dans IndexedDB
       const pdfBlob = doc.output("blob");

@@ -171,6 +171,7 @@ import { dbService } from "../services/db";
 import { examService } from "../services/examService";
 import { pdfService } from "../services/pdfService";
 import { referenceService } from "../services/referenceService";
+import { nativePlatformService } from "../services/nativePlatformService";
 import { Capacitor } from "@capacitor/core";
 import { Filesystem, Directory } from '@capacitor/filesystem';
 
@@ -913,10 +914,10 @@ async function exporterPDF() {
     const fileName = `examen-${patient.prenom || ""}-${patient.nom || ""}-${examId}.pdf`;
 
     // Utiliser le service d'export
-    const result = await referenceService.exportPDF(finalPdfBlob, fileName);
+    const result = await nativePlatformService.handleFileExport(finalPdfBlob, fileName);
     
-    if (Capacitor.isNativePlatform()) {
-      alert(`Le document a été sauvegardé dans vos documents : ${result}`);
+    if (nativePlatformService.isNativePlatform()) {
+      // Le menu de partage s'affiche automatiquement, pas besoin de message
     }
 
     // Nettoyer

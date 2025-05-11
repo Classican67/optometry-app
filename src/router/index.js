@@ -42,6 +42,12 @@ const routes = [
     meta: { requiresAuth: true },
   },
   {
+    path: "/utiles/:examId",
+    name: "Utiles",
+    component: () => import("../views/Utiles.vue"),
+    meta: { requiresAuth: true },
+  },
+  {
     path: "/refraction-objective/:examId",
     name: "RefractionObjective",
     component: RefractionObjective,
